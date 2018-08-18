@@ -149,7 +149,7 @@ namespace RaknetEmulator.Controllers
             //    responseObject["requestURL"] = context.Request.Url.ToString();
             //}
 
-            responseObject["requestURL"] = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+            responseObject["requestURL"] = $"{Request.HttpContext.Request.Host}{Request.HttpContext.Request.Path}{Request.HttpContext.Request.QueryString}";
 
             if (Plugin != null)
                 responseObject["plugin"] = Plugin.DisplayName.ToString();

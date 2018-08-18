@@ -23,12 +23,12 @@ namespace RaknetEmulator.Models
         public string rowPW { get; set; }
 
         public List<CustomGameDataField> GameAttributes { get; set; }
-        public Dictionary<string, JObject> CustomAttributes { get; set; }
+        public Dictionary<string, JToken> CustomAttributes { get; set; }
 
         public GameData()
         {
             GameAttributes = new List<CustomGameDataField>();
-            CustomAttributes = new Dictionary<string, JObject>();
+            CustomAttributes = new Dictionary<string, JToken>();
         }
     }
 

@@ -43,16 +43,11 @@ namespace RaknetEmulator.Modules.BZ2
         //public string DisplayName { get { return Name + @" (" + Version.ToString() + @")"; } }
         public string DisplayName { get { return Name; } }
 
-        //private object KebbzLock = new object();
-        //private JObject KebbzData;
-        //private DateTime KebbzDataDate;
-
         List<ListSource> sources;
         Dictionary<IPEndPoint, PongCacheData> pongCache;
 
         public Battlezone2GameList(IConfiguration Configuration)
         {
-            //sources = new List<ListSource>();
             pongCache = new Dictionary<IPEndPoint, PongCacheData>();
 
             sources = Configuration.GetSection("Plugins:BZ2:RemoteSources")
@@ -65,24 +60,6 @@ namespace RaknetEmulator.Modules.BZ2
                     Stale = conf.GetValue<int>("Stale"),
                     MaxStale = conf.GetValue<int>("MaxStale"),
                 }).ToList();
-
-            //sources.Add(new ListSource()
-            //{
-            //    ProxySource = "masterserver.matesfamily.org",
-            //    Url = @"http://masterserver.matesfamily.org/testServer?__gameId=BZ2",
-            //    Timeout = 3000,
-            //    Stale = 10000,
-            //    MaxStale = 30000,
-            //});
-
-            //sources.Add(new ListSource()
-            //{
-            //    ProxySource = "gamelist.kebbz.com",
-            //    Url = @"http://gamelist.kebbz.com/testServer?__gameId=BZ2",
-            //    Timeout = 2000,
-            //    Stale = 10000,
-            //    MaxStale = 30000,
-            //});
         }
 
         public void InterceptQueryStringForGet(ref Microsoft.AspNetCore.Http.IQueryCollection queryString) { }
