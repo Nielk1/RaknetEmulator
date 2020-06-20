@@ -58,6 +58,7 @@ namespace RaknetEmulator.Controllers
                 case "PUT":
                     return PostGame();
                 case "DELETE":
+                //case "PATCH":
                     return DeleteGame();
                 default:
                     Response.Headers.Add("Allow", "GET, POST, PUT, DELETE");
@@ -433,7 +434,7 @@ namespace RaknetEmulator.Controllers
                     {
                         try
                         {
-                            paramaters[property.Name] = property.Value<string>();
+                            paramaters[property.Name] = property.Value.Value<string>();
                         }
                         catch { }
                     });
@@ -441,12 +442,12 @@ namespace RaknetEmulator.Controllers
             }
             catch { }
 
-            string rawRowId = paramaters["__rowId"];
+            string rawRowId = paramaters.ContainsKey("__rowId") ? paramaters["__rowId"] : null;
             if (string.IsNullOrWhiteSpace(rawRowId))
             {
                 foreach (string rowId_key in _gameListModuleManager.RowIdKeys)
                 {
-                    rawRowId = paramaters[rowId_key];
+                    rawRowId = paramaters.ContainsKey(rowId_key) ? paramaters[rowId_key] : null;
                     if (!string.IsNullOrWhiteSpace(rawRowId))
                         break;
                 }
@@ -470,7 +471,7 @@ namespace RaknetEmulator.Controllers
             Plugin?.InterceptDataForDelete(ref paramaters);
 
             // process input rowPw
-            string inputRowPw = paramaters["__rowPW"];
+            string inputRowPw = paramaters.ContainsKey("__rowPW") ? paramaters["__rowPW"] : null;
             if (string.IsNullOrWhiteSpace(inputRowPw))
                 inputRowPw = string.Empty;
 
