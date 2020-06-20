@@ -70,8 +70,11 @@ namespace RaknetEmulator.Modules.BZCC
 
         public void InterceptDataForDelete(ref Dictionary<string, string> paramaters)
         {
-            paramaters["__rowPW"] = paramaters["rpwd"];
-            paramaters["rpwd"] = null;
+            if (paramaters.ContainsKey("rpwd"))
+            {
+                paramaters["__rowPW"] = paramaters["rpwd"];
+                paramaters.Remove("rpwd");
+            }
         }
 
         public void PreProcessGameList(ref Dictionary<string,string> queryString, ref List<GameData> rawGames, ref Dictionary<string, JObject> ExtraData)
