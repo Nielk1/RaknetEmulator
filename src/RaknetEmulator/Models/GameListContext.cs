@@ -98,7 +98,7 @@ namespace RaknetEmulator.Models
             }
         }
 
-        public void UpdateGame(long rowId, DateTime lastUpdate, int timeoutSec, long clientReqId, string addr, Dictionary<string, string> customValues)
+        public GameData UpdateGame(long rowId, DateTime lastUpdate, int timeoutSec, long clientReqId, string addr, Dictionary<string, string> customValues)
         {
             lock (Locker)
             {
@@ -118,6 +118,8 @@ namespace RaknetEmulator.Models
                 }).ToList();
                 GameAttributes.AddRange(game.GameAttributes);
                 SaveChanges();
+
+                return game;
             }
         }
 

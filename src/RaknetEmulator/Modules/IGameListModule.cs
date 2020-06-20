@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json.Linq;
+using RaknetEmulator.Controllers;
 using RaknetEmulator.Models;
 using System;
 using System.Collections.Generic;
@@ -16,18 +17,26 @@ namespace RaknetEmulator.Plugins
         //Version Version { get; }
         string DisplayName { get; }
 
+        string CustomRowIdKey { get; }
+        string CustomGameIdKey { get; }
+
         /// <summary>
         /// Change to alter QueryString values.
         /// </summary>
         /// <param name="queryString"></param>
-        void InterceptQueryStringForGet(ref Microsoft.AspNetCore.Http.IQueryCollection queryString);
+        void InterceptDataInForGet(ref Dictionary<string,string> queryString);
+
+        void InterceptDataForDelete(ref Dictionary<string, string> paramaters);
 
         /// <summary>
         /// Alterations to the game list may be made here immediatly after the database lookup
         /// </summary>
         /// <param name="queryString"></param>
         /// <param name="rawGames"></param>
-        void PreProcessGameList(Microsoft.AspNetCore.Http.IQueryCollection queryString, ref List<GameData> rawGames, ref Dictionary<string, JObject> ExtraData);
+        void PreProcessGameList(ref Dictionary<string,string> queryString, ref List<GameData> rawGames, ref Dictionary<string, JObject> ExtraData);
+        void InterceptDataInForPost(ref JObject postedObject);
+        void InterceptDataOutForPost(ref PostGameResponse retVal);
+        void PostProcessGameList(ref JArray gameArray);
 
 
 

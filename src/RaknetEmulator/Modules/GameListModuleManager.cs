@@ -6,14 +6,11 @@ using System.Reflection;
 
 namespace RaknetEmulator.Plugins
 {
-    public interface IGameListModuleManager
-    {
-        Dictionary<string, IGameListModule> GameListPlugins { get; set; }
-    }
-
-    public class GameListModuleManager : IGameListModuleManager
+    public class GameListModuleManager
     {
         public Dictionary<string, IGameListModule> GameListPlugins { get; set; }
+        public IEnumerable<string> RowIdKeys => GameListPlugins.Values.Select(dr => dr.CustomRowIdKey).Where(dr => !string.IsNullOrWhiteSpace(dr));
+        public IEnumerable<string> GameIdKeys => GameListPlugins.Values.Select(dr => dr.CustomGameIdKey).Where(dr => !string.IsNullOrWhiteSpace(dr));
 
         public GameListModuleManager(IConfiguration Configuration)
         {

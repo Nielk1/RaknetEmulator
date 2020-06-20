@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using RaknetEmulator.Controllers;
 using RaknetEmulator.Models;
 using RaknetEmulator.Plugins;
 using System;
@@ -37,11 +38,13 @@ namespace RaknetEmulator.Modules.BZCC
             }
         }
 
-        public string GameID { get { return "BZCC"; } }
-        public string Name { get { return "Battlezone CC GameList"; } }
+        public string GameID => "BZCC";
+        public string Name => "Battlezone CC GameList";
         //public Version Version { get { return typeof(BattlezoneCCGameList).Assembly.GetName().Version; } }
         //public string DisplayName { get { return Name + @" (" + Version.ToString() + @")"; } }
-        public string DisplayName { get { return Name; } }
+        public string DisplayName => Name;
+        public string CustomRowIdKey => "rid";
+        public string CustomGameIdKey => "gid";
 
         List<ListSource> sources;
 
@@ -59,9 +62,19 @@ namespace RaknetEmulator.Modules.BZCC
                 }).ToList();
         }
 
-        public void InterceptQueryStringForGet(ref Microsoft.AspNetCore.Http.IQueryCollection queryString) { }
+        public void InterceptDataInForGet(ref Dictionary<string,string> queryString)
+        {
+            string excluded = queryString.ContainsKey("__excludeCols") ? queryString["__excludeCols"] : null;
+            queryString["__excludeCols"] = string.Join(",", (excluded?.Split(',') ?? new string[] { }).Append("__addr").Distinct());
+        }
 
-        public void PreProcessGameList(Microsoft.AspNetCore.Http.IQueryCollection queryString, ref List<GameData> rawGames, ref Dictionary<string, JObject> ExtraData)
+        public void InterceptDataForDelete(ref Dictionary<string, string> paramaters)
+        {
+            paramaters["__rowPW"] = paramaters["rpwd"];
+            paramaters["rpwd"] = null;
+        }
+
+        public void PreProcessGameList(ref Dictionary<string,string> queryString, ref List<GameData> rawGames, ref Dictionary<string, JObject> ExtraData)
         {
             bool DoProxy = true;
             if (queryString.ContainsKey("__pluginProxy") && !bool.TryParse(queryString["__pluginProxy"], out DoProxy))
@@ -223,14 +236,14 @@ namespace RaknetEmulator.Modules.BZCC
                     {
                         rawGames.AddRange(((JArray)(source.LastData["GET"])).Cast<JObject>().ToList().Select(dr =>
                         {
-                            string addressPossibleRemap = string.Empty;
-                            addressPossibleRemap = "0.0.0.0";
+                            //string addressPossibleRemap = string.Empty;
+                            //addressPossibleRemap = "0.0.0.0";
 
                             try
                             {
                                 GameData remoteGame = new GameData()
                                 {
-                                    addr = addressPossibleRemap,//dr["__addr"].Value<string>(),
+                                    addr = null,//addressPossibleRemap,//dr["__addr"].Value<string>(),
                                     clientReqId = dr["__clientReqId"]?.Value<long>(),
                                     gameId = dr["__gameId"]?.Value<string>() ?? "BZCC",
                                     lastUpdate = DateTime.UtcNow,
@@ -242,21 +255,14 @@ namespace RaknetEmulator.Modules.BZCC
 
                                 dr.Properties().ToList().ForEach(dx =>
                                 {
-                                    if (!dx.Name.StartsWith("__"))
+                                    if (!dx.Name.StartsWith("__") && dx.Value.Type != JTokenType.Null)
                                     {
-                                        if (dx.Name == "pl")
-                                        {
-                                            remoteGame.CustomAttributes.Add("pl", dx.Value);
-                                        }
-                                        else
-                                        {
-                                            remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = dx.Name, Value = dx.Value.Value<string>() });
-                                        }
+                                        remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = dx.Name, Value = (dx.Value.Type == JTokenType.String ? ("\"" + dx.Value.ToString() + "\"") : dx.Value.ToString()) });
                                     }
                                 });
 
                                 if (ShowSource)
-                                    remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = "proxySource", Value = source.ProxySource });
+                                    remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = "proxySource", Value = $"\"{source.ProxySource}\"" });
 
                                 //rawGames.Add(kebbzGame);
                                 return remoteGame;
@@ -277,6 +283,84 @@ namespace RaknetEmulator.Modules.BZCC
             }
 
             //return rawGames;
+        }
+
+        public void PostProcessGameList(ref JArray gameArray)
+        {
+            foreach(JObject game in gameArray)
+            {
+                if (game["__gameId"] != null)
+                {
+                    game["gid"] = game["__gameId"];
+                    game.Remove("__gameId");
+                }
+
+                if (game["__rowId"] != null)
+                {
+                    game["rid"] = game["__rowId"];
+                    game.Remove("__rowId");
+                }
+
+                if (game["__clientReqId"] != null)
+                {
+                    game["cri"] = game["__clientReqId"];
+                    game.Remove("__clientReqId");
+                }
+
+                if (game["__timeoutSec"] != null)
+                {
+                    game["ts"] = game["__timeoutSec"];
+                    game.Remove("__timeoutSec");
+                }
+            }
+        }
+
+        public void InterceptDataInForPost(ref JObject postedObject)
+        {
+            if (postedObject["gid"] != null)
+            {
+                postedObject["__gameId"] = postedObject["gid"];
+                postedObject.Remove("gid");
+            }
+
+            if (postedObject["cri"] != null)
+            {
+                postedObject["__clientReqId"] = postedObject["cri"];
+                postedObject.Remove("cri");
+            }
+
+            if (postedObject["ts"] != null)
+            {
+                postedObject["__timeoutSec"] = postedObject["ts"];
+                postedObject.Remove("ts");
+            }
+
+            if (postedObject["rpwd"] != null)
+            {
+                postedObject["__rowPW"] = postedObject["rpwd"];
+                postedObject.Remove("rpwd");
+            }
+        }
+
+        public void InterceptDataOutForPost(ref PostGameResponse retVal)
+        {
+            if (retVal.POST.ContainsKey("__gameId"))
+            {
+                retVal.POST["gid"] = retVal.POST["__gameId"];
+                retVal.POST.Remove("__gameId");
+            }
+
+            if (retVal.POST.ContainsKey("__clientReqId"))
+            {
+                retVal.POST["cri"] = retVal.POST["__clientReqId"];
+                retVal.POST.Remove("__clientReqId");
+            }
+
+            if (retVal.POST.ContainsKey("__rowId"))
+            {
+                retVal.POST["rid"] = retVal.POST["__rowId"];
+                retVal.POST.Remove("__rowId");
+            }
         }
 
         private enum RemoteCallStatus

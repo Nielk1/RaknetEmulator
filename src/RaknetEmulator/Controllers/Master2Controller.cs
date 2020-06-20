@@ -16,20 +16,13 @@ namespace RaknetEmulator.Controllers
 {
     public class PostGameResponse
     {
-        public PostGameSubResponse POST { get; set; }
-    }
-
-    public class PostGameSubResponse
-    {
-        public long __clientReqId { get; set; }
-        public long __rowId { get; set; }
-        public string __gameId { get; set; }
+        public Dictionary<string, JToken> POST { get; set; }
     }
 
     public class Master2Controller : Controller
     {
         private readonly GameListContext _gameListContext;
-        private readonly IGameListModuleManager _gameListModuleManager;
+        private readonly GameListModuleManager _gameListModuleManager;
 
         //Object _GamelistNullLock = new Object();
 
@@ -38,7 +31,7 @@ namespace RaknetEmulator.Controllers
         int s_TimeoutMin = 15;
         int s_TimeoutMax = 300; // 900 on private list servers
 
-        public Master2Controller(GameListContext gameListContext, IGameListModuleManager gameListModuleManager)
+        public Master2Controller(GameListContext gameListContext, GameListModuleManager gameListModuleManager)
         {
             _gameListContext = gameListContext;
             _gameListModuleManager = gameListModuleManager;
@@ -53,13 +46,14 @@ namespace RaknetEmulator.Controllers
         //[HttpDelete]
         //[HttpPost]
         //[HttpPut]
-        public IActionResult GameList()
+        public IActionResult GameList(string defaultgameid)
         {
             //return View();
+            Response.Headers["Connection"] = "close";
             switch (Request.Method)
             {
                 case "GET":
-                    return GetGames();
+                    return GetGames(defaultgameid);
                 case "POST":
                 case "PUT":
                     return PostGame();
@@ -71,12 +65,14 @@ namespace RaknetEmulator.Controllers
             }
         }
 
-        private IActionResult GetGames()
+        private IActionResult GetGames(string defaultgameid)
         {
             _gameListContext.CleanStaleGames();
 
             string __gameId = Request.Query["__gameId"];
-            if (__gameId == null || __gameId.Length == 0)
+            if (string.IsNullOrWhiteSpace(__gameId))
+                __gameId = defaultgameid;
+            if (string.IsNullOrWhiteSpace(__gameId))
             {
                 //context.Response.StatusCode = 400; // Bad Request
                 //return;
@@ -84,21 +80,24 @@ namespace RaknetEmulator.Controllers
             }
 
             IGameListModule Plugin = null;
-            //((Global)(context.ApplicationInstance)).GameListPlugins.TryGetValue(__gameId, out Plugin);
             _gameListModuleManager.GameListPlugins.TryGetValue(__gameId, out Plugin);
 
-            Microsoft.AspNetCore.Http.IQueryCollection QueryString = Request.Query;
+            Dictionary<string, string> QueryString = new Dictionary<string, string>();
+            Request.Query.ToList().ForEach(query =>
+            {
+                QueryString[query.Key] = query.Value;
+            });
 
-            if (Plugin != null) Plugin.InterceptQueryStringForGet(ref QueryString);
+            Plugin?.InterceptDataInForGet(ref QueryString);
 
-            string geoIP = QueryString["__geoIP"];
+            string geoIP = QueryString.ContainsKey("__geoIP") ? QueryString["__geoIP"] : null;
             if (geoIP == null || geoIP.Length == 0)
             {
                 geoIP = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
             }
 
             List<string> excludedColumns = new List<string>();
-            string strExcludedCols = QueryString["__excludeCols"];
+            string strExcludedCols = QueryString.ContainsKey("__excludeCols") ? QueryString["__excludeCols"] : null;
             if (strExcludedCols != null && strExcludedCols.Length > 0)
             {
                 excludedColumns.AddRange(strExcludedCols.Split(','));
@@ -112,7 +111,7 @@ namespace RaknetEmulator.Controllers
             List<GameData> RawGames = _gameListContext.GetGames(__gameId).ToList();
             Dictionary<string, JObject> ExtraData = new Dictionary<string, JObject>();
 
-            if (Plugin != null) Plugin.PreProcessGameList(QueryString, ref RawGames, ref ExtraData);
+            Plugin?.PreProcessGameList(ref QueryString, ref RawGames, ref ExtraData);
 
             RawGames.ForEach(dr =>
             {
@@ -127,7 +126,9 @@ namespace RaknetEmulator.Controllers
                 foreach (CustomGameDataField pair in dr.GameAttributes)
                 {
                     if (!excludedColumns.Contains(pair.Key))
-                        obj[pair.Key] = pair.Value;
+                    {
+                        obj[pair.Key] = JToken.Parse(pair.Value);
+                    }
                 }
 
                 foreach (var pair in dr.CustomAttributes)
@@ -138,6 +139,8 @@ namespace RaknetEmulator.Controllers
 
                 GameArray.Add(obj);
             });
+
+            Plugin?.PostProcessGameList(ref GameArray);
 
             //// holdover from when the rewrite engine was used rather than directly setting this handler
             //if (context.Request.ServerVariables["HTTP_X_ORIGINAL_URL"] != null)
@@ -175,9 +178,7 @@ namespace RaknetEmulator.Controllers
                 }
                 catch
                 {
-                    //context.Response.StatusCode = 400; // Bad Request
-                    //return;
-                    return StatusCode(400);
+                    return StatusCode(400); // Bad Request
                 }
 
                 /**
@@ -189,21 +190,28 @@ namespace RaknetEmulator.Controllers
                 * setting.On the public server, the server will create it.You may specify
                 * passwords for this game on creation with the control fields __updatePW and __readPW.
                 **/
-                string inputGameId = postedObject["__gameId"].Value<string>();
-                if (inputGameId == null || inputGameId.Length == 0)
+                string inputGameId = postedObject["__gameId"]?.Value<string>();
+                if (string.IsNullOrWhiteSpace(inputGameId))
                 {
-                    if (s_AllowEmptyGameID)
+                    foreach (string gameId_key in _gameListModuleManager.GameIdKeys)
                     {
-                        inputGameId = string.Empty;
-                    }
-                    else
-                    {
-                        //Response.StatusCode = 400; // Bad Request
-                        //return;
-                        return StatusCode(400);
+                        inputGameId = postedObject[gameId_key]?.Value<string>();
+                        if (!string.IsNullOrWhiteSpace(inputGameId))
+                            break;
                     }
                 }
 
+                if (string.IsNullOrWhiteSpace(inputGameId))
+                {
+                    if (!s_AllowEmptyGameID)
+                        return StatusCode(400); // Bad Request
+                    inputGameId = string.Empty;
+                }
+
+                IGameListModule Plugin = null;
+                if(!string.IsNullOrWhiteSpace(inputGameId))
+                    _gameListModuleManager.GameListPlugins.TryGetValue(inputGameId, out Plugin);
+                Plugin?.InterceptDataInForPost(ref postedObject);
 
                 /**
                 * __clientReqId
@@ -218,9 +226,7 @@ namespace RaknetEmulator.Controllers
                 **/
                 long inputClientReqId = -1;
                 if (postedObject["__clientReqId"] != null)
-                {
                     inputClientReqId = postedObject["__clientReqId"].Value<long>();
-                }
 
 
                 /**
@@ -246,11 +252,7 @@ namespace RaknetEmulator.Controllers
                 //if (inputTimeoutSec < s_TimeoutMin) inputTimeoutSec = s_TimeoutMin;
 
                 if ((inputTimeoutSec > s_TimeoutMax) || (inputTimeoutSec < s_TimeoutMin))
-                {
-                    //Response.StatusCode = 400; // Bad Request
-                    //return;
-                    return StatusCode(400);
-                }
+                    return StatusCode(400); // Bad Request
 
 
                 /**
@@ -265,9 +267,7 @@ namespace RaknetEmulator.Controllers
                 string geoIP = Request.Query["__geoIP"];
                 //string geoIP = __geoIP;
                 if (geoIP != null && !IsValidIP(geoIP))
-                {
                     geoIP = null;
-                }
 
 
                 /**
@@ -280,11 +280,9 @@ namespace RaknetEmulator.Controllers
                 * password but it was not specified, or the password was wrong, error code 401 
                 * will be returned.
                 **/
-                string inputRowPW = postedObject["__rowPW"].Value<string>();
-                if (inputRowPW == null || inputRowPW.Length == 0)
-                {
+                string inputRowPW = postedObject["__rowPW"]?.Value<string>();
+                if (string.IsNullOrWhiteSpace(inputRowPW))
                     inputRowPW = null;
-                }
 
 
                 // Game level password for reading.
@@ -336,9 +334,7 @@ namespace RaknetEmulator.Controllers
                 **/
                 long inputRowId = -1;
                 if (postedObject["__rowId"] != null)
-                {
                     inputRowId = postedObject["__rowId"].Value<long>();
-                }
 
                 // prepare variables for holding check data
                 long lookupRowId = -1;
@@ -368,82 +364,59 @@ namespace RaknetEmulator.Controllers
                 }
 
                 // no game already exists
-                if (lookupRowId < 0)
-                {
-                    // process custom fields
-                    Dictionary<string, string> customRowFields = new Dictionary<string, string>();
-                    postedObject.Properties().ToList().ForEach(dr =>
-                    {
-                        if (!dr.Name.StartsWith("__"))
-                        {
-                            customRowFields[dr.Name] = dr.Value.Value<string>();
-                        }
-                    });
-
-                    // insert new game, get the rowId created
-                    var tmpGame = _gameListContext.AddGame(inputGameId, DateTime.UtcNow, inputTimeoutSec, inputRowPW, inputClientReqId, inputAddr, customRowFields);
-                    if (tmpGame != null)
-                    {
-                        lookupRowId = tmpGame.rowId;
-                    }
-                }
-                else if ((inputRowPW == null && lookupRowPw == null) || (inputRowPW == lookupRowPw))
+                if ((lookupRowId < 0) || ((inputRowPW == null && lookupRowPw == null) || (inputRowPW == lookupRowPw)))
                 {
                     // process custom fields
                     Dictionary<string, string> customValues = new Dictionary<string, string>();
                     postedObject.Properties().ToList().ForEach(dr =>
                     {
-                        if (!dr.Name.StartsWith("__"))
-                        {
-                            customValues[dr.Name] = dr.Value.Value<string>();
-                        }
+                        if (!dr.Name.StartsWith("__") && dr.Value.Type != JTokenType.Null)
+                            customValues[dr.Name] = (dr.Value.Type == JTokenType.String ? ("\"" + dr.Value.ToString() + "\"") : dr.Value.ToString());
                     });
 
-                    // update game
-                    _gameListContext.UpdateGame(lookupRowId, DateTime.UtcNow, inputTimeoutSec, inputClientReqId, inputAddr, customValues);
+                    GameData tmpGame = null;
+                    if (lookupRowId < 0)
+                    {
+                        // create game
+                        tmpGame = _gameListContext.AddGame(inputGameId, DateTime.UtcNow, inputTimeoutSec, inputRowPW, inputClientReqId, inputAddr, customValues);
+                    }
+                    else if ((inputRowPW == null && lookupRowPw == null) || (inputRowPW == lookupRowPw))
+                    {
+                        // update game
+                        tmpGame = _gameListContext.UpdateGame(lookupRowId, DateTime.UtcNow, inputTimeoutSec, inputClientReqId, inputAddr, customValues);
+                    }
+
+                    if (tmpGame == null)
+                        return StatusCode(500); // Error
+
+                    PostGameResponse retVal = new PostGameResponse()
+                    {
+                        POST = new Dictionary<string, JToken>()
+                        {
+                            { "__clientReqId", inputClientReqId},
+                            { "__rowId", lookupRowId},
+                            { "__gameId", inputGameId},
+                        }
+                    };
+
+                    Plugin?.InterceptDataOutForPost(ref retVal);
+
+                    return Json(retVal);
                 }
                 else if (inputRowPW != lookupRowPw)
                 {
-                    //Response.StatusCode = 401; // Unauthorized
-                    //return;
-                    return StatusCode(401);
+                    return StatusCode(401); // Unauthorized
                 }
                 else
                 {
-                    //Response.StatusCode = 400; // Bad Request
-                    //return;
-                    return StatusCode(400);
+                    return StatusCode(400); // Bad Request
                 }
-
-                // building response object
-                //JObject responseObject = new JObject();
-                //JObject responseSubObject = new JObject();
-                //responseObject["POST"] = responseSubObject;
-
-                // send the data the caller needs to update this game later
-                //responseSubObject["__clientReqId"] = inputClientReqId;
-                //responseSubObject["__rowId"] = lookupRowId;
-                //responseSubObject["__gameId"] = inputGameId;
-
-                PostGameResponse retVal = new PostGameResponse()
-                {
-                    POST = new PostGameSubResponse()
-                    {
-                        __clientReqId = inputClientReqId,
-                        __rowId = lookupRowId,
-                        __gameId = inputGameId
-                    }
-                };
-
-                // write response
-                return Json(retVal);
             }
         }
 
         private IActionResult DeleteGame()
         {
             Dictionary<string, string> paramaters = new Dictionary<string, string>();
-
             Request.Query.ToList().ForEach(query =>
             {
                 paramaters[query.Key] = query.Value;
@@ -468,70 +441,60 @@ namespace RaknetEmulator.Controllers
             }
             catch { }
 
-            // check input rowId
             string rawRowId = paramaters["__rowId"];
-            if (rawRowId == null || rawRowId.Length == 0)
+            if (string.IsNullOrWhiteSpace(rawRowId))
             {
-                //Response.StatusCode = 400; // Bad Request
-                //return;
-                return StatusCode(400);
+                foreach (string rowId_key in _gameListModuleManager.RowIdKeys)
+                {
+                    rawRowId = paramaters[rowId_key];
+                    if (!string.IsNullOrWhiteSpace(rawRowId))
+                        break;
+                }
             }
 
+            // check input rowId
+            if (string.IsNullOrWhiteSpace(rawRowId))
+                return StatusCode(400); // Bad Request
+
             // process input rowId
-            long inputRowId = -1;
-            if (!long.TryParse(rawRowId, out inputRowId))
-            {
-                //context.Response.StatusCode = 400; // Bad Request
-                //return;
+            long lookupRowId = -1;
+            if (!long.TryParse(rawRowId, out lookupRowId))
+                return StatusCode(400); // Bad Request
+
+            GameData tmpDat = _gameListContext.CheckGame(lookupRowId);
+            if (tmpDat == null)
                 return StatusCode(400);
-            }
+
+            IGameListModule Plugin = null;
+            _gameListModuleManager.GameListPlugins.TryGetValue(tmpDat.gameId, out Plugin);
+            Plugin?.InterceptDataForDelete(ref paramaters);
 
             // process input rowPw
             string inputRowPw = paramaters["__rowPW"];
-            //if (inputRowPw == null || inputRowPw.Length == 0)
-            //{
-            //    context.Response.StatusCode = 400; // Bad Request
-            //    return;
-            //}
-            if (inputRowPw == null)
-            {
+            if (string.IsNullOrWhiteSpace(inputRowPw))
                 inputRowPw = string.Empty;
-            }
 
             // prepare variables for holding check data
             string lookupRowPw = string.Empty;
 
             // get RowPw for game
-            GameData tmpDat = _gameListContext.CheckGame(inputRowId);
-            if (tmpDat != null)
-            {
-                inputRowId = tmpDat.rowId;
-                lookupRowPw = tmpDat.rowPW;
-            }
+            lookupRowPw = tmpDat.rowPW;
 
-            if (inputRowId < 0)
-            {
-                //Response.StatusCode = 400; // Bad Request
-                //return;
-                return StatusCode(400);
-            }
+            if (tmpDat.rowId < 0)
+                return StatusCode(400); // Bad Request
 
             if (lookupRowPw == null)
-            {
                 lookupRowPw = string.Empty;
-            }
 
             if (inputRowPw == lookupRowPw)
             {
                 // delete the game
-                //_gameListContext.DeleteGame(inputRowId);
-                return StatusCode(200);
+                _gameListContext.DeleteGame(tmpDat.rowId);
+                return StatusCode(200); // OK
             }
             else
             {
-                //Response.StatusCode = 401; // Unauthorized
-                //return;
-                return StatusCode(401);
+                return StatusCode(401); // Unauthorized
             }
         }
 

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using RaknetEmulator.Models;
 using Microsoft.EntityFrameworkCore;
 using RaknetEmulator.Plugins;
+using Newtonsoft.Json.Serialization;
 
 namespace RaknetEmulator
 {
@@ -24,7 +25,8 @@ namespace RaknetEmulator
         public void ConfigureServices(IServiceCollection services)
         {
             // Add framework services.
-            services.AddMvc();
+            services.AddMvc()
+                .AddJsonOptions(options => options.SerializerSettings.ContractResolver = new DefaultContractResolver());
 
             services.Configure<IISOptions>(options =>
             {
@@ -41,7 +43,7 @@ namespace RaknetEmulator
             services.AddDbContext<GameListContext>(options => options.UseSqlite(conn));
 
             services.AddSingleton<IConfiguration>(Configuration);
-            services.AddSingleton<IGameListModuleManager, GameListModuleManager>();
+            services.AddSingleton<GameListModuleManager>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -75,6 +77,11 @@ namespace RaknetEmulator
                     name: "testServer",
                     template: "testServer",
                     defaults: new { controller = "Master2", action = "GameList" });
+
+                routes.MapRoute(
+                    name: "lobbyServer",
+                    template: "lobbyServer",
+                    defaults: new { controller = "Master2", action = "GameList", defaultgameid = "BZCC" });
             });
         }
     }
