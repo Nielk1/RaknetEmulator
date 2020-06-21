@@ -73,7 +73,7 @@ namespace RaknetEmulator.Modules.BZCC
                 return 0.0f;
 
             // we're a paramaterless GET request to lobbyServer, we're very likely to be BZCC
-            if (Method == "GET" && Paramaters.Count == 0)
+            if (Method == "GET" && Paramaters.Properties().Where(dr => !dr.Name.StartsWith(@"__")).Count() == 0)
                 return 0.9f;
 
             return 0.0f;
