@@ -359,6 +359,12 @@ namespace RaknetEmulator.Modules.BZCC
                 postedObject["__rowPW"] = postedObject["rpwd"];
                 postedObject.Remove("rpwd");
             }
+
+            if (postedObject["upwd"] != null)
+            {
+                postedObject["__updatePW"] = postedObject["upwd"];
+                postedObject.Remove("upwd");
+            }
         }
 
         public void TransformPostResponse(ref PostGameResponse retVal)
@@ -390,6 +396,24 @@ namespace RaknetEmulator.Modules.BZCC
             {
                 Paramaters["__rowPW"] = Paramaters["rpwd"];
                 Paramaters.Remove("rpwd");
+            }
+
+            if (Paramaters["rid"] != null)
+            {
+                Paramaters["__rowId"] = Paramaters["rid"];
+                Paramaters.Remove("rid");
+            }
+
+            if (Paramaters["upwd"] != null)
+            {
+                Paramaters["__updatePW"] = Paramaters["upwd"];
+                Paramaters.Remove("upwd");
+            }
+
+            if (Paramaters["gid"] != null)
+            {
+                Paramaters["__gameId"] = Paramaters["gid"];
+                Paramaters.Remove("gid");
             }
         }
         #endregion DELETE
