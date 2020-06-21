@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,8 +10,6 @@ namespace RaknetEmulator.Plugins
     public class GameListModuleManager
     {
         public Dictionary<string, IGameListModule> GameListPlugins { get; set; }
-        public IEnumerable<string> RowIdKeys => GameListPlugins.Values.Select(dr => dr.CustomRowIdKey).Where(dr => !string.IsNullOrWhiteSpace(dr));
-        public IEnumerable<string> GameIdKeys => GameListPlugins.Values.Select(dr => dr.CustomGameIdKey).Where(dr => !string.IsNullOrWhiteSpace(dr));
 
         public GameListModuleManager(IConfiguration Configuration)
         {
@@ -25,6 +24,16 @@ namespace RaknetEmulator.Plugins
                     GameListPlugins.Add(plugin.GameID, plugin);
                 }
             }
+        }
+
+        public IEnumerable<IGameListModule> GetLikelyPlugins(JObject Paramaters, string Path, string Method)
+        {
+            string[] PathArray = Path.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            return GameListPlugins.Values
+                .Select(dr => new { Item = dr, Rank = dr.IsPluginLikely(Paramaters, PathArray, Method) })
+                .Where(dr => dr.Rank > 0.0f)
+                .OrderByDescending(dr => dr.Rank)
+                .Select(dr => dr.Item);
         }
     }
 }

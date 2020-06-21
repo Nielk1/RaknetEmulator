@@ -43,8 +43,6 @@ namespace RaknetEmulator.Modules.BZ2
         //public Version Version { get { return typeof(Battlezone2GameList).Assembly.GetName().Version; } }
         //public string DisplayName { get { return Name + @" (" + Version.ToString() + @")"; } }
         public string DisplayName => Name;
-        public string CustomRowIdKey => null;
-        public string CustomGameIdKey => null;
 
         List<ListSource> sources;
         Dictionary<IPEndPoint, PongCacheData> pongCache;
@@ -65,35 +63,53 @@ namespace RaknetEmulator.Modules.BZ2
                 }).ToList();
         }
 
-        public void InterceptDataInForGet(ref Dictionary<string,string> queryString) { }
+        public float IsPluginLikely(JObject Paramaters, string[] Path, string Method)
+        {
+            // BZCC uses a specific URL path
+            if (Path.Length != 1)
+                return 0.0f;
+            if (Path[0] != "testServer")
+                return 0.0f;
 
-        public void InterceptDataForDelete(ref Dictionary<string, string> paramaters) { }
+            // we're definitly for this game because its the right gameid and is using the stock __gameId field
+            if (Paramaters["gid"]?.Value<string>() == "BZ2")
+                return 1.0f;
 
-        public void PreProcessGameList(ref Dictionary<string,string> queryString, ref List<GameData> rawGames, ref Dictionary<string, JObject> ExtraData)
+            return 0.0f;
+        }
+
+        #region GET
+        public void TransformGetParamaters(ref JObject Paramaters) { }
+
+        public void PreProcessGameList(ref JObject Paramaters, ref List<GameData> RawGames, ref Dictionary<string, JObject> ExtraData)
         {
             bool DoProxy = true;
-            if (queryString.ContainsKey("__pluginProxy") && !bool.TryParse(queryString["__pluginProxy"], out DoProxy))
+            try
             {
-                DoProxy = true;
+                DoProxy = Paramaters["__pluginProxy"]?.Value<bool?>() ?? DoProxy;
             }
+            catch { }
 
             bool ShowSource = false;
-            if (queryString.ContainsKey("__pluginShowSource") && !bool.TryParse(queryString["__pluginShowSource"], out ShowSource))
+            try
             {
-                ShowSource = false;
+                ShowSource = Paramaters["__pluginShowSource"]?.Value<bool?>() ?? ShowSource;
             }
+            catch { }
 
             bool ShowStatus = false;
-            if (queryString.ContainsKey("__pluginShowStatus") && !bool.TryParse(queryString["__pluginShowStatus"], out ShowStatus))
+            try
             {
-                ShowStatus = false;
+                ShowStatus = Paramaters["__pluginShowStatus"]?.Value<bool?>() ?? ShowStatus;
             }
+            catch { }
 
             bool QueryServers = false;
-            if (queryString.ContainsKey("__pluginQueryServers") && !bool.TryParse(queryString["__pluginQueryServers"], out QueryServers))
+            try
             {
-                QueryServers = false;
+                QueryServers = Paramaters["__pluginQueryServers"]?.Value<bool?>() ?? QueryServers;
             }
+            catch { }
 
             if (QueryServers)
             {
@@ -126,7 +142,7 @@ namespace RaknetEmulator.Modules.BZ2
                 //hardCodedGame.GameAttributes.Add(new CustomGameDataField("r", @"@ZA@d1"));
                 //hardCodedGame.GameAttributes.Add(new CustomGameDataField("v", @"S1"));
 
-                rawGames.Add(hardCodedGame);
+                RawGames.Add(hardCodedGame);
             }
 
             JObject statusData = null;
@@ -243,7 +259,7 @@ namespace RaknetEmulator.Modules.BZ2
                 {
                     if (source.LastData != null)
                     {
-                        rawGames.AddRange(((JArray)(source.LastData["GET"])).Cast<JObject>().ToList().Select(dr =>
+                        RawGames.AddRange(((JArray)(source.LastData["GET"])).Cast<JObject>().ToList().Select(dr =>
                         {
                             string addressPossibleRemap = string.Empty;
                             try
@@ -322,7 +338,7 @@ namespace RaknetEmulator.Modules.BZ2
 
             if (QueryServers)
             {
-                rawGames.AsParallel().ForAll(game =>
+                RawGames.AsParallel().ForAll(game =>
                 {
                     {
                         RaknetPong packetOut = new RaknetPong();// { Players = true, Teams = true, ServerInfo = false };
@@ -444,12 +460,20 @@ namespace RaknetEmulator.Modules.BZ2
             //return rawGames;
         }
 
-        public void PostProcessGameList(ref JArray gameArray) { }
+        public void TransformGetResponse(ref JObject ResponseObject) { }
+        #endregion GET
 
-        public void InterceptDataInForPost(ref JObject postedObject) { }
+        #region POST
+        public void TransformPostParamaters(ref JObject postedObject) { }
 
-        public void InterceptDataOutForPost(ref PostGameResponse retVal) { }
+        public void TransformPostResponse(ref PostGameResponse retVal) { }
+        #endregion POST
 
+        #region DELETE
+        public void TransformDeleteParamaters(ref JObject Paramaters) { }
+        #endregion DELETE
+
+        #region Helper Functions
         private static bool IsValidIP(string address)
         {
             if (!Regex.IsMatch(address, @"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"))
@@ -486,7 +510,9 @@ namespace RaknetEmulator.Modules.BZ2
             if (count < 0) count = buffer.Length;
             return Encoding.ASCII.GetString(buffer, 0, count);
         }
+        #endregion Helper Functions
 
+        #region Declared Types
         struct PongCacheData
         {
             public JObject data;
@@ -652,5 +678,6 @@ namespace RaknetEmulator.Modules.BZ2
             expired,
             cached,
         }
+        #endregion Declared Types
     }
 }

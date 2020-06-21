@@ -73,15 +73,20 @@ namespace RaknetEmulator
                     template: "",
                     defaults: new { controller = "Master2", action = "Index" });
 
-                routes.MapRoute(
-                    name: "testServer",
-                    template: "testServer",
-                    defaults: new { controller = "Master2", action = "GameList" });
+                //routes.MapRoute(
+                //    name: "testServer",
+                //    template: "testServer",
+                //    defaults: new { controller = "Master2", action = "GameList" });
+
+                //routes.MapRoute(
+                //    name: "lobbyServer",
+                //    template: "lobbyServer",
+                //    defaults: new { controller = "Master2", action = "GameList", defaultgameid = "BZCC" });
 
                 routes.MapRoute(
-                    name: "lobbyServer",
-                    template: "lobbyServer",
-                    defaults: new { controller = "Master2", action = "GameList", defaultgameid = "BZCC" });
+                    name: "GameList",
+                    template: "{*url}",
+                    defaults: new { controller = "Master2", action = "GameList" });
             });
         }
     }

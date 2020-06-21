@@ -46,14 +46,14 @@ namespace RaknetEmulator.Controllers
         //[HttpDelete]
         //[HttpPost]
         //[HttpPut]
-        public IActionResult GameList(string defaultgameid)
+        public IActionResult GameList()
         {
             //return View();
             Response.Headers["Connection"] = "close";
             switch (Request.Method)
             {
                 case "GET":
-                    return GetGames(defaultgameid);
+                    return GetGames();
                 case "POST":
                 case "PUT":
                     return PostGame();
@@ -66,53 +66,46 @@ namespace RaknetEmulator.Controllers
             }
         }
 
-        private IActionResult GetGames(string defaultgameid)
+        private IActionResult GetGames()
         {
             _gameListContext.CleanStaleGames();
 
-            string __gameId = Request.Query["__gameId"];
-            if (string.IsNullOrWhiteSpace(__gameId))
-                __gameId = defaultgameid;
-            if (string.IsNullOrWhiteSpace(__gameId))
-            {
-                //context.Response.StatusCode = 400; // Bad Request
-                //return;
-                return StatusCode(400);
-            }
-
-            IGameListModule Plugin = null;
-            _gameListModuleManager.GameListPlugins.TryGetValue(__gameId, out Plugin);
-
-            Dictionary<string, string> QueryString = new Dictionary<string, string>();
+            JObject Paramaters = new JObject();
             Request.Query.ToList().ForEach(query =>
             {
-                QueryString[query.Key] = query.Value;
+                Paramaters[query.Key] = query.Value.ToString();
             });
 
-            Plugin?.InterceptDataInForGet(ref QueryString);
+            IGameListModule Plugin = null;
+            Plugin = _gameListModuleManager.GetLikelyPlugins(Paramaters, Request.Path.Value, Request.Method).FirstOrDefault();
 
-            string geoIP = QueryString.ContainsKey("__geoIP") ? QueryString["__geoIP"] : null;
-            if (geoIP == null || geoIP.Length == 0)
-            {
+            // transform GET paramaters to match default logic
+            Plugin?.TransformGetParamaters(ref Paramaters);
+
+            // check gameId
+            string __gameId = Paramaters["__gameId"]?.Value<string>();
+            if (string.IsNullOrWhiteSpace(__gameId) && !s_AllowEmptyGameID)
+                return StatusCode(400); // Bad Request
+
+            // check geoIP
+            string geoIP = Paramaters["__geoIP"]?.Value<string>();
+            if (string.IsNullOrWhiteSpace(geoIP))
                 geoIP = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
-            }
 
+            // excluded data columns
             List<string> excludedColumns = new List<string>();
-            string strExcludedCols = QueryString.ContainsKey("__excludeCols") ? QueryString["__excludeCols"] : null;
-            if (strExcludedCols != null && strExcludedCols.Length > 0)
-            {
+            string strExcludedCols = Paramaters["__excludeCols"]?.Value<string>();
+            if (!string.IsNullOrWhiteSpace(strExcludedCols))
                 excludedColumns.AddRange(strExcludedCols.Split(','));
-            }
 
             JObject responseObject = new JObject();
-
             JArray GameArray = new JArray();
             responseObject["GET"] = GameArray;
 
             List<GameData> RawGames = _gameListContext.GetGames(__gameId).ToList();
-            Dictionary<string, JObject> ExtraData = new Dictionary<string, JObject>();
+            Dictionary<string, JObject> ExtraResponseData = new Dictionary<string, JObject>();
 
-            Plugin?.PreProcessGameList(ref QueryString, ref RawGames, ref ExtraData);
+            Plugin?.PreProcessGameList(ref Paramaters, ref RawGames, ref ExtraResponseData);
 
             RawGames.ForEach(dr =>
             {
@@ -125,45 +118,26 @@ namespace RaknetEmulator.Controllers
                 if (!excludedColumns.Contains("__timeoutSec")) obj["__timeoutSec"] = dr.timeoutSec;
 
                 foreach (CustomGameDataField pair in dr.GameAttributes)
-                {
                     if (!excludedColumns.Contains(pair.Key))
-                    {
                         obj[pair.Key] = JToken.Parse(pair.Value);
-                    }
-                }
 
                 foreach (var pair in dr.CustomAttributes)
-                {
                     if (!excludedColumns.Contains(pair.Key))
                         obj[pair.Key] = pair.Value;
-                }
 
                 GameArray.Add(obj);
             });
-
-            Plugin?.PostProcessGameList(ref GameArray);
-
-            //// holdover from when the rewrite engine was used rather than directly setting this handler
-            //if (context.Request.ServerVariables["HTTP_X_ORIGINAL_URL"] != null)
-            //{
-            //    responseObject["requestURL"] = context.Request.Url.GetLeftPart(UriPartial.Authority) + context.Request.ServerVariables["HTTP_X_ORIGINAL_URL"]; 
-            //}
-            //else
-            //{
-            //    responseObject["requestURL"] = context.Request.Url.ToString();
-            //}
 
             responseObject["requestURL"] = $"{Request.HttpContext.Request.Host}{Request.HttpContext.Request.Path}{Request.HttpContext.Request.QueryString}";
 
             if (Plugin != null)
                 responseObject["plugin"] = Plugin.DisplayName.ToString();
 
-            foreach(var pair in ExtraData)
-            {
+            foreach(var pair in ExtraResponseData)
                 responseObject[pair.Key] = pair.Value;
-            }
 
-            //Response.Write(responseObject.ToString(Newtonsoft.Json.Formatting.None));
+            Plugin?.TransformGetResponse(ref responseObject);
+
             return Json(responseObject);
         }
 
@@ -182,6 +156,11 @@ namespace RaknetEmulator.Controllers
                     return StatusCode(400); // Bad Request
                 }
 
+                IGameListModule Plugin = null;
+                Plugin = _gameListModuleManager.GetLikelyPlugins(postedObject, Request.Path.Value, Request.Method).FirstOrDefault();
+
+                Plugin?.TransformPostParamaters(ref postedObject);
+
                 /**
                 * __gameId
                 * Optional: Depends on server setting. Not optional on public server.
@@ -194,25 +173,10 @@ namespace RaknetEmulator.Controllers
                 string inputGameId = postedObject["__gameId"]?.Value<string>();
                 if (string.IsNullOrWhiteSpace(inputGameId))
                 {
-                    foreach (string gameId_key in _gameListModuleManager.GameIdKeys)
-                    {
-                        inputGameId = postedObject[gameId_key]?.Value<string>();
-                        if (!string.IsNullOrWhiteSpace(inputGameId))
-                            break;
-                    }
-                }
-
-                if (string.IsNullOrWhiteSpace(inputGameId))
-                {
                     if (!s_AllowEmptyGameID)
                         return StatusCode(400); // Bad Request
                     inputGameId = string.Empty;
                 }
-
-                IGameListModule Plugin = null;
-                if(!string.IsNullOrWhiteSpace(inputGameId))
-                    _gameListModuleManager.GameListPlugins.TryGetValue(inputGameId, out Plugin);
-                Plugin?.InterceptDataInForPost(ref postedObject);
 
                 /**
                 * __clientReqId
@@ -400,7 +364,7 @@ namespace RaknetEmulator.Controllers
                         }
                     };
 
-                    Plugin?.InterceptDataOutForPost(ref retVal);
+                    Plugin?.TransformPostResponse(ref retVal);
 
                     return Json(retVal);
                 }
@@ -417,10 +381,10 @@ namespace RaknetEmulator.Controllers
 
         private IActionResult DeleteGame()
         {
-            Dictionary<string, string> paramaters = new Dictionary<string, string>();
+            JObject Paramaters = new JObject();
             Request.Query.ToList().ForEach(query =>
             {
-                paramaters[query.Key] = query.Value;
+                Paramaters[query.Key] = query.Value.ToString();
             });
 
             // If there's a post body, use it overriding the query string
@@ -434,7 +398,7 @@ namespace RaknetEmulator.Controllers
                     {
                         try
                         {
-                            paramaters[property.Name] = property.Value.Value<string>();
+                            Paramaters[property.Name] = property.Value.Value<string>();
                         }
                         catch { }
                     });
@@ -442,18 +406,14 @@ namespace RaknetEmulator.Controllers
             }
             catch { }
 
-            string rawRowId = paramaters.ContainsKey("__rowId") ? paramaters["__rowId"] : null;
-            if (string.IsNullOrWhiteSpace(rawRowId))
-            {
-                foreach (string rowId_key in _gameListModuleManager.RowIdKeys)
-                {
-                    rawRowId = paramaters.ContainsKey(rowId_key) ? paramaters[rowId_key] : null;
-                    if (!string.IsNullOrWhiteSpace(rawRowId))
-                        break;
-                }
-            }
+            IGameListModule Plugin = null;
+            Plugin = _gameListModuleManager.GetLikelyPlugins(Paramaters, Request.Path.Value, Request.Method).FirstOrDefault();
+            
+            // transform DELETE paramaters to match default logic
+            Plugin?.TransformDeleteParamaters(ref Paramaters);
 
             // check input rowId
+            string rawRowId = Paramaters["__rowId"].Value<string>();
             if (string.IsNullOrWhiteSpace(rawRowId))
                 return StatusCode(400); // Bad Request
 
@@ -466,12 +426,9 @@ namespace RaknetEmulator.Controllers
             if (tmpDat == null)
                 return StatusCode(400);
 
-            IGameListModule Plugin = null;
-            _gameListModuleManager.GameListPlugins.TryGetValue(tmpDat.gameId, out Plugin);
-            Plugin?.InterceptDataForDelete(ref paramaters);
 
             // process input rowPw
-            string inputRowPw = paramaters.ContainsKey("__rowPW") ? paramaters["__rowPW"] : null;
+            string inputRowPw = Paramaters["__rowPW"]?.Value<string>();
             if (string.IsNullOrWhiteSpace(inputRowPw))
                 inputRowPw = string.Empty;
 

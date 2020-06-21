@@ -43,8 +43,6 @@ namespace RaknetEmulator.Modules.BZCC
         //public Version Version { get { return typeof(BattlezoneCCGameList).Assembly.GetName().Version; } }
         //public string DisplayName { get { return Name + @" (" + Version.ToString() + @")"; } }
         public string DisplayName => Name;
-        public string CustomRowIdKey => "rid";
-        public string CustomGameIdKey => "gid";
 
         List<ListSource> sources;
 
@@ -62,40 +60,56 @@ namespace RaknetEmulator.Modules.BZCC
                 }).ToList();
         }
 
-        public void InterceptDataInForGet(ref Dictionary<string,string> queryString)
+        public float IsPluginLikely(JObject Paramaters, string[] Path, string Method)
         {
-            string excluded = queryString.ContainsKey("__excludeCols") ? queryString["__excludeCols"] : null;
-            queryString["__excludeCols"] = string.Join(",", (excluded?.Split(',') ?? new string[] { }).Append("__addr").Distinct());
+            // BZCC uses a specific URL path
+            if (Path.Length != 1)
+                return 0.0f;
+            if (Path[0] != "lobbyServer")
+                return 0.0f;
+
+            // we're definitly for this game because its the right gameid and is using the custom gid field
+            if (Paramaters["gid"]?.Value<string>() == "BZCC")
+                return 1.0f;
+
+            // we're a paramaterless GET request to lobbyServer, we're very likely to be BZCC
+            if (Method == "GET" && Paramaters.Count == 0)
+                return 0.9f;
+
+            return 0.0f;
         }
 
-        public void InterceptDataForDelete(ref Dictionary<string, string> paramaters)
+        #region GET
+        public void TransformGetParamaters(ref JObject Paramaters)
         {
-            if (paramaters.ContainsKey("rpwd"))
-            {
-                paramaters["__rowPW"] = paramaters["rpwd"];
-                paramaters.Remove("rpwd");
-            }
+            string excluded = Paramaters["__excludeCols"]?.Value<string>();
+            Paramaters["__excludeCols"] = string.Join(",", (excluded?.Split(',') ?? new string[] { }).Append("__addr").Distinct());
+
+            Paramaters["__gameId"] = "BZCC";
         }
 
-        public void PreProcessGameList(ref Dictionary<string,string> queryString, ref List<GameData> rawGames, ref Dictionary<string, JObject> ExtraData)
+        public void PreProcessGameList(ref JObject Paramaters, ref List<GameData> RawGames, ref Dictionary<string, JObject> ExtraData)
         {
             bool DoProxy = true;
-            if (queryString.ContainsKey("__pluginProxy") && !bool.TryParse(queryString["__pluginProxy"], out DoProxy))
+            try
             {
-                DoProxy = true;
+                DoProxy = Paramaters["__pluginProxy"]?.Value<bool?>() ?? DoProxy;
             }
+            catch { }
 
             bool ShowSource = false;
-            if (queryString.ContainsKey("__pluginShowSource") && !bool.TryParse(queryString["__pluginShowSource"], out ShowSource))
+            try
             {
-                ShowSource = false;
+                ShowSource = Paramaters["__pluginShowSource"]?.Value<bool?>() ?? ShowSource;
             }
+            catch { }
 
             bool ShowStatus = false;
-            if (queryString.ContainsKey("__pluginShowStatus") && !bool.TryParse(queryString["__pluginShowStatus"], out ShowStatus))
+            try
             {
-                ShowStatus = false;
+                ShowStatus = Paramaters["__pluginShowStatus"]?.Value<bool?>() ?? ShowStatus;
             }
+            catch { }
 
             long rowIdCounter = -1;
 
@@ -237,7 +251,7 @@ namespace RaknetEmulator.Modules.BZCC
                 {
                     if (source.LastData != null)
                     {
-                        rawGames.AddRange(((JArray)(source.LastData["GET"])).Cast<JObject>().ToList().Select(dr =>
+                        RawGames.AddRange(((JArray)(source.LastData["GET"])).Cast<JObject>().ToList().Select(dr =>
                         {
                             //string addressPossibleRemap = string.Empty;
                             //addressPossibleRemap = "0.0.0.0";
@@ -288,9 +302,9 @@ namespace RaknetEmulator.Modules.BZCC
             //return rawGames;
         }
 
-        public void PostProcessGameList(ref JArray gameArray)
+        public void TransformGetResponse(ref JObject ResponseObject)
         {
-            foreach(JObject game in gameArray)
+            foreach(JObject game in ResponseObject["GET"])
             {
                 if (game["__gameId"] != null)
                 {
@@ -317,8 +331,10 @@ namespace RaknetEmulator.Modules.BZCC
                 }
             }
         }
+        #endregion GET
 
-        public void InterceptDataInForPost(ref JObject postedObject)
+        #region POST
+        public void TransformPostParamaters(ref JObject postedObject)
         {
             if (postedObject["gid"] != null)
             {
@@ -345,7 +361,7 @@ namespace RaknetEmulator.Modules.BZCC
             }
         }
 
-        public void InterceptDataOutForPost(ref PostGameResponse retVal)
+        public void TransformPostResponse(ref PostGameResponse retVal)
         {
             if (retVal.POST.ContainsKey("__gameId"))
             {
@@ -365,7 +381,20 @@ namespace RaknetEmulator.Modules.BZCC
                 retVal.POST.Remove("__rowId");
             }
         }
+        #endregion POST
 
+        #region DELETE
+        public void TransformDeleteParamaters(ref JObject Paramaters)
+        {
+            if (Paramaters["rpwd"] != null)
+            {
+                Paramaters["__rowPW"] = Paramaters["rpwd"];
+                Paramaters.Remove("rpwd");
+            }
+        }
+        #endregion DELETE
+
+        #region Declared Types
         private enum RemoteCallStatus
         {
             none,
@@ -373,5 +402,6 @@ namespace RaknetEmulator.Modules.BZCC
             expired,
             cached,
         }
+        #endregion Declared Types
     }
 }
