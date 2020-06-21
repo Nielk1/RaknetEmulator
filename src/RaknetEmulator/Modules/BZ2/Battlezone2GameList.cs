@@ -65,15 +65,15 @@ namespace RaknetEmulator.Modules.BZ2
 
         public float IsPluginLikely(JObject Paramaters, string[] Path, string Method)
         {
-            // BZCC uses a specific URL path
+            // we're definitly for this game because its the right gameid and is using the stock __gameId field
+            if (Paramaters["gid"]?.Value<string>() == "BZ2")
+                return 1.0f;
+
+            // BZ2 uses a specific URL path
             if (Path.Length != 1)
                 return 0.0f;
             if (Path[0] != "testServer")
                 return 0.0f;
-
-            // we're definitly for this game because its the right gameid and is using the stock __gameId field
-            if (Paramaters["gid"]?.Value<string>() == "BZ2")
-                return 1.0f;
 
             return 0.0f;
         }
