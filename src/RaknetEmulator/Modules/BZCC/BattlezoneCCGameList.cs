@@ -62,15 +62,15 @@ namespace RaknetEmulator.Modules.BZCC
 
         public float IsPluginLikely(JObject Paramaters, string[] Path, string Method)
         {
+            // we're definitly for this game because its the right gameid and is using the custom gid field
+            if (Paramaters["gid"]?.Value<string>() == "BZCC")
+                return 1.0f;
+
             // BZCC uses a specific URL path
             if (Path.Length != 1)
                 return 0.0f;
             if (Path[0] != "lobbyServer")
                 return 0.0f;
-
-            // we're definitly for this game because its the right gameid and is using the custom gid field
-            if (Paramaters["gid"]?.Value<string>() == "BZCC")
-                return 1.0f;
 
             // we're a paramaterless GET request to lobbyServer, we're very likely to be BZCC
             if (Method == "GET" && Paramaters.Count == 0)
