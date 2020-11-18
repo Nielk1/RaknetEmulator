@@ -9,6 +9,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using System.Net;
 using RaknetEmulator.Plugins;
+using Newtonsoft.Json;
 
 // For more information on enabling MVC for empty projects, visit http://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -138,8 +139,11 @@ namespace RaknetEmulator.Controllers
 
             Plugin?.TransformGetResponse(ref responseObject);
 
-            return Json(responseObject);
-        }
+            //return Json(responseObject);
+            string responseString = JsonConvert.SerializeObject(responseObject);
+            Response.Headers.ContentLength = responseString.Length;
+            return Content(responseString, "application/json");
+      }
 
         private IActionResult PostGame()
         {
@@ -366,7 +370,10 @@ namespace RaknetEmulator.Controllers
 
                     Plugin?.TransformPostResponse(ref retVal);
 
-                    return Json(retVal);
+                    //return Json(retVal);
+                    string responseString = JsonConvert.SerializeObject(retVal);
+                    Response.Headers.ContentLength = responseString.Length;
+                    return Content(responseString, "application/json");
                 }
                 else if (inputRowPW != lookupRowPw)
                 {
