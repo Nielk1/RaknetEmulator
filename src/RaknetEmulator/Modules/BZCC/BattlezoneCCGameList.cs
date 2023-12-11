@@ -301,7 +301,7 @@ namespace RaknetEmulator.Modules.BZCC
                                 {
                                     if (!dx.Name.StartsWith("__") && dx.Value.Type != JTokenType.Null)
                                     {
-                                        remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = dx.Name, Value = (dx.Value.Type == JTokenType.String ? ("\"" + dx.Value.ToString() + "\"") : dx.Value.ToString()) });
+                                        remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = dx.Name, Value = (dx.Value.Type == JTokenType.String ? JsonConvert.SerializeObject(dx.Value) : dx.Value.ToString()) });
                                     }
                                 });
 
