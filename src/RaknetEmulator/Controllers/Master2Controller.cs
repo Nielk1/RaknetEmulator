@@ -47,7 +47,7 @@ namespace RaknetEmulator.Controllers
         //[HttpDelete]
         //[HttpPost]
         //[HttpPut]
-        public IActionResult GameList()
+        public async Task<IActionResult> GameList()
         {
             //return View();
             Response.Headers["Connection"] = "close";
@@ -57,10 +57,10 @@ namespace RaknetEmulator.Controllers
                     return GetGames();
                 case "POST":
                 case "PUT":
-                    return PostGame();
+                    return await PostGame();
                 case "DELETE":
                 //case "PATCH":
-                    return DeleteGame();
+                    return await DeleteGame();
                 default:
                     Response.Headers.Add("Allow", "GET, POST, PUT, DELETE");
                     return StatusCode(405); // Method Not Allowed
@@ -145,7 +145,7 @@ namespace RaknetEmulator.Controllers
             return Content(responseString, "application/json");
       }
 
-        private IActionResult PostGame()
+        private async Task<IActionResult> PostGame()
         {
             using (var reader = new StreamReader(Request.Body))
             {
@@ -153,7 +153,7 @@ namespace RaknetEmulator.Controllers
                 try
                 {
                     // read posted data
-                    postedObject = JObject.Parse(reader.ReadToEnd());
+                    postedObject = JObject.Parse(await reader.ReadToEndAsync());
                 }
                 catch
                 {
@@ -386,7 +386,7 @@ namespace RaknetEmulator.Controllers
             }
         }
 
-        private IActionResult DeleteGame()
+        private async Task<IActionResult> DeleteGame()
         {
             JObject Paramaters = new JObject();
             Request.Query.ToList().ForEach(query =>
@@ -400,7 +400,7 @@ namespace RaknetEmulator.Controllers
                 using (var reader = new StreamReader(Request.Body))
                 {
                     // read posted data
-                    JObject postedObject = JObject.Parse(reader.ReadToEnd());
+                    JObject postedObject = JObject.Parse(await reader.ReadToEndAsync());
                     postedObject.Properties().ToList().ForEach(property =>
                     {
                         try

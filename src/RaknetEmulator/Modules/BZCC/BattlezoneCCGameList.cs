@@ -148,6 +148,8 @@ namespace RaknetEmulator.Modules.BZCC
                 object counterLock = new object();
                 int counter = sources.Count;
 
+                bool RebellionIsUp = false;
+
                 sources.AsParallel().ForAll(dr =>
                 {
                     RemoteCallStatus cacheType = RemoteCallStatus.cached;
@@ -231,6 +233,8 @@ namespace RaknetEmulator.Modules.BZCC
                                 statusData[dr.ProxySource] = tmp;
                             }
                         }
+                        if (dr.ProxySource == "Rebellion")
+                            RebellionIsUp = dr.LastData != null;
 
                         lock (counterLock)
                         {
@@ -242,6 +246,29 @@ namespace RaknetEmulator.Modules.BZCC
                 while (counter > 0)
                 {
                     Thread.Sleep(100);
+                }
+
+                {
+                    GameData hardCodedGame = new GameData()
+                    {
+                        addr = @"0.0.0.0:17770",
+                        clientReqId = 0,
+                        gameId = "BZCC",
+                        lastUpdate = DateTime.UtcNow,
+                        rowId = rowIdCounter--,
+                        rowPW = string.Empty,
+                        timeoutSec = 300,
+                        //updatePw = string.Empty
+                    };
+                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "n", Value = $"\"{Convert.ToBase64String(Encoding.ASCII.GetBytes($"Rebellion's server is {(RebellionIsUp ? "UP" : "DOWN")}"))}\"" });
+                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "l", Value = "\"1\"" });
+                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "m", Value = "\"bismuth\"" });
+                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "g", Value = "\"XXXXXXX@XX\"" });
+                    if (RebellionIsUp)
+                        hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "h", Value = "\"Fix your host files!\"" });
+                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "mm", Value = "\"0\"" });
+
+                    RawGames.Add(hardCodedGame);
                 }
 
                 HashSet<int> usedPorts = new HashSet<int>() { 17770 }; // start with hardcoded game already there
@@ -304,7 +331,7 @@ namespace RaknetEmulator.Modules.BZCC
 
         public void TransformGetResponse(ref JObject ResponseObject)
         {
-            foreach(JObject game in ResponseObject["GET"])
+            foreach (JObject game in ResponseObject["GET"])
             {
                 if (game["__gameId"] != null)
                 {
@@ -328,6 +355,11 @@ namespace RaknetEmulator.Modules.BZCC
                 {
                     game["ts"] = game["__timeoutSec"];
                     game.Remove("__timeoutSec");
+                }
+
+                if (game["mu"] == null)
+                {
+                    game["mu"] = string.Empty; // fix bug where null Map URL makes Map set to null in game
                 }
             }
         }

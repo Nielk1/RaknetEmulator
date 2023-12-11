@@ -7,6 +7,7 @@ using RaknetEmulator.Models;
 using Microsoft.EntityFrameworkCore;
 using RaknetEmulator.Plugins;
 using Newtonsoft.Json.Serialization;
+using Microsoft.Extensions.Hosting;
 
 namespace RaknetEmulator
 {
@@ -25,8 +26,9 @@ namespace RaknetEmulator
         public void ConfigureServices(IServiceCollection services)
         {
             // Add framework services.
-            services.AddMvc()
-                .AddJsonOptions(options => options.SerializerSettings.ContractResolver = new DefaultContractResolver());
+            services.AddControllers();
+            //services.AddMvc();
+                //.AddJsonOptions(options => options.SerializerSettings.ContractResolver = new DefaultContractResolver());
 
             services.Configure<IISOptions>(options =>
             {
@@ -47,15 +49,15 @@ namespace RaknetEmulator
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ILoggerFactory loggerFactory)
         {
-            loggerFactory.AddConsole(Configuration.GetSection("Logging"));
-            loggerFactory.AddDebug();
+            //loggerFactory.AddConsole(Configuration.GetSection("Logging"));
+            //loggerFactory.AddDebug();
 
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
-                app.UseBrowserLink();
+                //app.UseBrowserLink();
             }
             else
             {
@@ -64,13 +66,15 @@ namespace RaknetEmulator
 
             app.UseStaticFiles();
 
+            app.UseRouting();
+
             //app.UseMvc();
 
-            app.UseMvc(routes =>
+            app.UseEndpoints(endpoints =>
             {
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "default",
-                    template: "",
+                    pattern: "",
                     defaults: new { controller = "Master2", action = "Index" });
 
                 //routes.MapRoute(
@@ -83,9 +87,9 @@ namespace RaknetEmulator
                 //    template: "lobbyServer",
                 //    defaults: new { controller = "Master2", action = "GameList", defaultgameid = "BZCC" });
 
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "GameList",
-                    template: "{*url}",
+                    pattern: "{*url}",
                     defaults: new { controller = "Master2", action = "GameList" });
             });
         }
