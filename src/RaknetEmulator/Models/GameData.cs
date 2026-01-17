@@ -38,7 +38,7 @@ namespace RaknetEmulator.Models
         public string gameCustFieldId { get; set; }
 
         public string Key { get; set; }
-        public string Value { get; set; }
+        public JToken Value { get; set; }
 
         public long GameDataRowId { get; set; }
         public GameData GameData { get; set; }

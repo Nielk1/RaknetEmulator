@@ -260,13 +260,13 @@ namespace RaknetEmulator.Modules.BZCC
                         timeoutSec = 300,
                         //updatePw = string.Empty
                     };
-                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "n", Value = $"\"{Convert.ToBase64String(Encoding.ASCII.GetBytes($"Rebellion's server is {(RebellionIsUp ? "UP" : "DOWN")}"))}\"" });
-                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "l", Value = "\"1\"" });
-                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "m", Value = "\"bismuth\"" });
-                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "g", Value = "\"XXXXXXX@XX\"" });
+                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "n", Value = Convert.ToBase64String(Encoding.ASCII.GetBytes($"Rebellion's server is {(RebellionIsUp ? "UP" : "DOWN")}")) });
+                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "l", Value = 1 });
+                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "m", Value = "bismuth" });
+                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "g", Value = "XXXXXXX@XX" });
                     if (RebellionIsUp)
-                        hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "h", Value = "\"Fix your host files!\"" });
-                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "mm", Value = "\"0\"" });
+                        hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "h", Value = "Fix your host files!" });
+                    hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "mm", Value = "0" });
 
                     RawGames.Add(hardCodedGame);
                 }
@@ -301,12 +301,12 @@ namespace RaknetEmulator.Modules.BZCC
                                 {
                                     if (!dx.Name.StartsWith("__") && dx.Value.Type != JTokenType.Null)
                                     {
-                                        remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = dx.Name, Value = (dx.Value.Type == JTokenType.String ? JsonConvert.SerializeObject(dx.Value) : dx.Value.ToString()) });
+                                        remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = dx.Name, Value = dx.Value });
                                     }
                                 });
 
                                 if (ShowSource)
-                                    remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = "proxySource", Value = $"\"{source.ProxySource}\"" });
+                                    remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = "proxySource", Value = source.ProxySource });
 
                                 //rawGames.Add(kebbzGame);
                                 return remoteGame;

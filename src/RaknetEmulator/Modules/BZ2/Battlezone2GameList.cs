@@ -133,9 +133,9 @@ namespace RaknetEmulator.Modules.BZ2
                     timeoutSec = 300,
                     //updatePw = string.Empty
                 };
-                hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "n", Value = "\"IonDriver Bismuth (Raknet Master2 Emulator)\"" });
-                hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "l", Value = "\"1\"" });
-                hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "m", Value = "\"bismuth\"" });
+                hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "n", Value = "IonDriver Bismuth (Raknet Master2 Emulator)" });
+                hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "l", Value = 1 });
+                hardCodedGame.GameAttributes.Add(new CustomGameDataField() { Key = "m", Value = "bismuth" });
                 //hardCodedGame.GameAttributes.Add(new CustomGameDataField("d", string.Empty));
                 //hardCodedGame.GameAttributes.Add(new CustomGameDataField("k", 1.ToString()));
                 //hardCodedGame.GameAttributes.Add(new CustomGameDataField("t", 7.ToString()));
@@ -316,12 +316,12 @@ namespace RaknetEmulator.Modules.BZ2
                                 {
                                     if (!dx.Name.StartsWith("__") && dx.Value.Type != JTokenType.Null)
                                     {
-                                        remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = dx.Name, Value = (dx.Value.Type == JTokenType.String ? JsonConvert.SerializeObject(dx.Value) : dx.Value.ToString()) });
+                                        remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = dx.Name, Value = dx.Value });
                                     }
                                 });
 
                                 if (ShowSource)
-                                    remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = "proxySource", Value = "\"" + source.ProxySource + "\"" });
+                                    remoteGame.GameAttributes.Add(new CustomGameDataField() { Key = "proxySource", Value = source.ProxySource });
 
                                 //rawGames.Add(kebbzGame);
                                 return remoteGame;
@@ -632,7 +632,7 @@ namespace RaknetEmulator.Modules.BZ2
 
         class RaknetPong
         {
-            private UInt32 Header = 0x00000002;
+            private UInt32 Header = 0x00000002; // it's possible this should be 1, as 2 only PONGs back if connections are available
 
             public UInt32 Ping { get; set; }
 

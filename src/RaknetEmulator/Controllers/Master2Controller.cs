@@ -120,7 +120,7 @@ namespace RaknetEmulator.Controllers
 
                 foreach (CustomGameDataField pair in dr.GameAttributes)
                     if (!excludedColumns.Contains(pair.Key))
-                        obj[pair.Key] = JToken.Parse(pair.Value);
+                        obj[pair.Key] = pair.Value;
 
                 foreach (var pair in dr.CustomAttributes)
                     if (!excludedColumns.Contains(pair.Key))
@@ -336,11 +336,11 @@ namespace RaknetEmulator.Controllers
                 if ((lookupRowId < 0) || ((inputRowPW == null && lookupRowPw == null) || (inputRowPW == lookupRowPw)))
                 {
                     // process custom fields
-                    Dictionary<string, string> customValues = new Dictionary<string, string>();
+                    Dictionary<string, JToken> customValues = new Dictionary<string, JToken>();
                     postedObject.Properties().ToList().ForEach(dr =>
                     {
                         if (!dr.Name.StartsWith("__") && dr.Value.Type != JTokenType.Null)
-                            customValues[dr.Name] = (dr.Value.Type == JTokenType.String ? ("\"" + dr.Value.ToString() + "\"") : dr.Value.ToString());
+                            customValues[dr.Name] = dr.Value;
                     });
 
                     GameData tmpGame = null;

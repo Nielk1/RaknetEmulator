@@ -1,4 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -27,6 +29,13 @@ namespace RaknetEmulator.Models
             {
                 b.HasKey(e => e.gameCustFieldId);
                 b.Property(e => e.gameCustFieldId).ValueGeneratedOnAdd();
+
+                // JToken <-> string converter
+                var converter = new ValueConverter<JToken, string>(
+                    v => v == null ? null : v.ToString(Formatting.None),
+                    v => string.IsNullOrEmpty(v) ? null : JToken.Parse(v)
+                );
+                b.Property(e => e.Value).HasConversion(converter);
             });
         }
 
@@ -58,7 +67,7 @@ namespace RaknetEmulator.Models
             }
         }
 
-        public GameData AddGame(string gameId, DateTime lastUpdate, int timeoutSec, string rowPW, long clientReqId, string addr, Dictionary<string, string> customValues)
+        public GameData AddGame(string gameId, DateTime lastUpdate, int timeoutSec, string rowPW, long clientReqId, string addr, Dictionary<string, JToken> customValues)
         {
             lock (Locker)
             {
@@ -98,7 +107,7 @@ namespace RaknetEmulator.Models
             }
         }
 
-        public GameData UpdateGame(long rowId, DateTime lastUpdate, int timeoutSec, long clientReqId, string addr, Dictionary<string, string> customValues)
+        public GameData UpdateGame(long rowId, DateTime lastUpdate, int timeoutSec, long clientReqId, string addr, Dictionary<string, JToken> customValues)
         {
             lock (Locker)
             {
